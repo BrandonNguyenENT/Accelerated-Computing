@@ -1,0 +1,35 @@
+#include <omp.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <math.h>
+
+omp_lock_t lock;
+#pragma omp parallel for private(k,value,newNode,p,prev)
+for(k = 1; k <= 4; k++) {
+    omp_set_lock(&lock);
+    fprintf(stderr,"1. thread %d locks\n",omp_get_thread_num());
+    p = head->next;
+    prev = head;
+    value = rand() % 1000 + 1;
+    while (p != NULL) {
+        if (p->value >= value)
+            break;
+    prev = p;
+    p = p->next;
+}
+
+newNode = (Node *)calloc(1,sizeof(Node));
+fprintf(stderr,"4. thread %d inserts %03d\n",omp_get_thread_num(), value);
+newNode->value = value;
+newNode->next = p;
+newNode->prev = prev;
+newNode->prev->next = newNode;
+fprintf(stderr,"\tthread %d updates newNode->prev->next (%p) to (%p)\n",
+        omp_get_thread_num(), newNode->prev->next, newNode);
+    if (p) {
+        p->prev = newNode;
+    }
+    fprintf(stderr,"2. thread %d unlocks\n",omp_get_thread_num());
+    omp_unset_lock(&lock);
+}

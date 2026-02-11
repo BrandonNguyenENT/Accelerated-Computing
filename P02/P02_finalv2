@@ -1,0 +1,221 @@
+#include <omp.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
+#include <string.h>
+
+typedef struct node {
+    int value;
+    struct node *prev;
+    struct node *next;
+    omp_lock_t lock;
+} node;
+
+static uint32_t lcg_next(uint32_t *state) {
+    // Deterministic PRNG (works consistently on Windows/Linux; avoids rand_r portability issues)
+    // Numerical Recipes LCG constants
+    *state = (*state * 1664525u) + 1013904223u;
+    return *state;
+}
+
+static node *list_create_sentinel(void) {
+    node *head = (node *)calloc(1, sizeof(node));
+    if (!head) {
+        fprintf(stderr, "calloc failed for head\n");
+        exit(1);
+    }
+    head->value = INT_MIN; // sentinel: always the first
+    head->prev = NULL;
+    head->next = NULL;
+    omp_init_lock(&head->lock);
+    return head;
+}
+
+static void list_free(node *head) {
+    node *p = head;
+    while (p) {
+        node *nxt = p->next;
+        omp_destroy_lock(&p->lock);
+        free(p);
+        p = nxt;
+    }
+}
+
+static int list_validate_sorted_and_count(node *head, int *is_sorted_out) {
+    int count = 0;
+    int sorted = 1;
+    node *p = head->next;
+    int last = INT_MIN;
+    while (p) {
+        count++;
+        if (p->value < last) sorted = 0;
+        last = p->value;
+        if (p->next && p->next->prev != p) sorted = 0;
+        p = p->next;
+    }
+    if (is_sorted_out) *is_sorted_out = sorted;
+    return count;
+}
+
+static void list_insert_serial(node *head, int value) {
+    node *prev = head;
+    node *p = head->next;
+
+    while (p && p->value < value) {
+        prev = p;
+        p = p->next;
+    }
+
+    node *newNode = (node *)calloc(1, sizeof(node));
+    if (!newNode) {
+        fprintf(stderr, "calloc failed for node\n");
+        exit(1);
+    }
+    newNode->value = value;
+    newNode->prev = prev;
+    newNode->next = p;
+    omp_init_lock(&newNode->lock);
+
+    prev->next = newNode;
+    if (p) p->prev = newNode;
+}
+
+static void list_insert_parallel_lockcoupled(node *head, int value) {
+    // Lock coupling:
+    // - Lock prev, then lock curr (if exists)
+    // - Move forward: unlock prev, advance, lock next
+    // - Insert while holding prev (and curr if non-NULL)
+    node *prev = head;
+    omp_set_lock(&prev->lock);
+
+    node *curr = prev->next;
+    if (curr) omp_set_lock(&curr->lock);
+
+    while (curr && curr->value < value) {
+        omp_unset_lock(&prev->lock);
+        prev = curr;
+        curr = curr->next;
+        if (curr) omp_set_lock(&curr->lock);
+    }
+
+    node *newNode = (node *)calloc(1, sizeof(node));
+    if (!newNode) {
+        fprintf(stderr, "calloc failed for node\n");
+        exit(1);
+    }
+    newNode->value = value;
+    newNode->prev = prev;
+    newNode->next = curr;
+    omp_init_lock(&newNode->lock);
+
+    prev->next = newNode;
+    if (curr) curr->prev = newNode;
+
+    if (curr) omp_unset_lock(&curr->lock);
+    omp_unset_lock(&prev->lock);
+}
+
+static int parse_N_from_arg(const char *s) {
+    // Accept:
+    // - integer N (e.g., "1024")
+    // - scientific notation (e.g., "1e6")
+    // - power-of-two exponent as "2^k" (e.g., "2^18")
+    if (!s || !*s) return -1;
+
+    if (strncmp(s, "2^", 2) == 0) {
+        int k = atoi(s + 2);
+        if (k < 0 || k > 30) return -1;
+        return 1 << k;
+    }
+
+    char *end = NULL;
+    double v = strtod(s, &end);
+    if (end == s) return -1;
+    if (v < 1.0) return -1;
+    if (v > 2147483647.0) return -1;
+    return (int)(v + 0.5);
+}
+
+static int max_power_of_two_leq(int x) {
+    int p = 1;
+    while ((p << 1) > 0 && (p << 1) <= x) p <<= 1;
+    return p;
+}
+
+int main(int argc, char **argv) {
+    // Default behavior: run one N per invocation (the Makefile driver sweeps N).
+    // If no argv[1], run N=1024.
+    int N = 1024;
+    if (argc >= 2) {
+        int parsed = parse_N_from_arg(argv[1]);
+        if (parsed < 1) {
+            fprintf(stderr, "Usage: %s <N | 1eK | 2^K>\n", argv[0]);
+            return 2;
+        }
+        N = parsed;
+    }
+
+    // Determine max threads from OMP_NUM_THREADS (or default 8)
+    int max_threads = 8;
+    const char *env = getenv("OMP_NUM_THREADS");
+    if (env && *env) {
+        int t = atoi(env);
+        if (t >= 1) max_threads = t;
+    }
+    max_threads = max_power_of_two_leq(max_threads);
+
+    // Pre-generate values so serial and parallel insert the same multiset.
+    int *values = (int *)malloc((size_t)N * sizeof(int));
+    if (!values) {
+        fprintf(stderr, "malloc failed for values, N=%d\n", N);
+        return 1;
+    }
+    uint32_t prng = 1u;
+    for (int i = 0; i < N; i++) {
+        uint32_t r = lcg_next(&prng);
+        values[i] = (int)(r % 1000000u) + 1;
+    }
+
+    // Parallel runs (n = 2,4,8,... <= max_threads)
+    for (int n = 2; n <= max_threads; n <<= 1) {
+        node *head = list_create_sentinel();
+        omp_set_num_threads(n);
+
+        double t0 = omp_get_wtime();
+#pragma omp parallel for schedule(static)
+        for (int i = 0; i < N; i++) {
+            list_insert_parallel_lockcoupled(head, values[i]);
+        }
+        double t1 = omp_get_wtime();
+
+        int sorted = 0;
+        int j = list_validate_sorted_and_count(head, &sorted);
+        int correct = (sorted && j == N) ? j : -1;
+        printf("parallel: threads = %d, j = %d, correct = %d, N = %.0e, %.2e s\n",
+               n, j, correct, (double)N, (t1 - t0));
+
+        list_free(head);
+    }
+
+    // Serial run
+    {
+        node *head = list_create_sentinel();
+        double t0 = omp_get_wtime();
+        for (int i = 0; i < N; i++) {
+            list_insert_serial(head, values[i]);
+        }
+        double t1 = omp_get_wtime();
+
+        int sorted = 0;
+        int j = list_validate_sorted_and_count(head, &sorted);
+        int correct = (sorted && j == N) ? j : -1;
+        printf("serial: j = %d, correct = %d, N = %.0e, %.2e s\n",
+               j, correct, (double)N, (t1 - t0));
+
+        list_free(head);
+    }
+
+    free(values);
+    return 0;
+}

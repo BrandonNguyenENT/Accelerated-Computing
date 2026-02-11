@@ -1,0 +1,76 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+/* Bidirectional list node */
+typedef struct Node {
+    int value;
+    struct Node *next;
+    struct Node *prev;
+} Node;
+
+int main(void) {
+    int k, i, N, value;
+    Node *head, *p, *prev, *newNode;
+
+    /* Initialize random seed once */
+    srand(time(NULL));
+
+    /* Loop over N = 2^1 to 2^18 */
+    for (k = 1; k <= 18; k++) {
+
+        N = 1 << k;
+
+        /* Create fresh head (sentinel node) */
+        head = calloc(1, sizeof(Node));
+        head->next = NULL;
+        head->prev = NULL;
+
+        struct timespec start, end;
+        clock_gettime(CLOCK_MONOTONIC, &start);
+
+        /* Insert N nodes in sorted order */
+        for (i = 0; i < N; i++) {
+
+            value = rand() % 1000 + 1;
+
+            /* Find insertion point */
+            p = head->next;
+            prev = head;
+
+            while (p && p->value < value) {
+                prev = p;
+                p = p->next;
+            }
+
+            /* Allocate and insert node */
+            newNode = calloc(1, sizeof(Node));
+            newNode->value = value;
+            newNode->next = p;
+            newNode->prev = prev;
+
+            prev->next = newNode;
+            if (p)
+                p->prev = newNode;
+        }
+
+        clock_gettime(CLOCK_MONOTONIC, &end);
+
+        /* Compute elapsed time */
+        double elapsed =
+            (end.tv_sec - start.tv_sec) +
+            (end.tv_nsec - start.tv_nsec) * 1e-9;
+
+        fprintf(stderr, "N = %d Elapsed Time = %.6f\n", N, elapsed);
+
+        /* Free the entire list before next N */
+        Node *temp = head;
+        while (temp) {
+            Node *next = temp->next;
+            free(temp);
+            temp = next;
+        }
+    }
+
+    return 0;
+}

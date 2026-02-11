@@ -1,0 +1,168 @@
+#include <omp.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
+#include <string.h>
+
+/* ==========================================
+   Node Definition (per lecture slides)
+========================================== */
+typedef struct node {
+    int value;
+    struct node *next;
+    struct node *prev;
+    omp_lock_t lock;
+} Node;
+
+/* ==========================================
+   Global Head Pointer
+========================================== */
+Node *head = NULL;
+
+/* ==========================================
+   Verify Correctness
+   - Checks ascending order
+   - Checks correct node count
+========================================== */
+int verify(int N)
+{
+    Node *p = head;
+    int count = 0;
+    int prev_val = -1;
+
+    while (p != NULL)
+    {
+        if (p->value < prev_val)
+        {
+            printf("ERROR: List is not sorted.\n");
+            return 0;
+        }
+
+        prev_val = p->value;
+        count++;
+        p = p->next;
+    }
+
+    // +1 because head node exists
+    if (count != N + 1)
+    {
+        printf("ERROR: Expected %d nodes, found %d\n", N + 1, count);
+        return 0;
+    }
+
+    printf("List verified successfully (%d nodes).\n", count);
+    return 1;
+}
+
+/* ==========================================
+   Free List and Destroy Locks
+========================================== */
+void cleanup()
+{
+    Node *temp = head;
+    Node *next;
+
+    while (temp != NULL)
+    {
+        next = temp->next;
+        omp_destroy_lock(&temp->lock);
+        free(temp);
+        temp = next;
+    }
+}
+
+/* ==========================================
+   Main
+========================================== */
+int main(int argc, char *argv[])
+{
+    if (argc < 3)
+    {
+        printf("Usage: %s <N> <threads>\n", argv[0]);
+        return 1;
+    }
+
+    int N = atoi(argv[1]);
+    int threads = atoi(argv[2]);
+
+    omp_set_num_threads(threads);
+
+    /* ======================================
+       Create Sentinel Head Node
+    ====================================== */
+    head = (Node *)calloc(1, sizeof(Node));
+    head->value = 0;
+    head->next = NULL;
+    head->prev = NULL;
+    omp_init_lock(&head->lock);
+
+    double start_time = omp_get_wtime();
+
+    /* ======================================
+       Parallel In-Order Insert
+       (Hand-over-Hand Locking)
+    ====================================== */
+    #pragma omp parallel for private(k,value,newNode,p,prev)
+    for (int k = 1; k <= N; k++)
+    {
+        Node *prev, *p, *newNode;
+        int value;
+
+        /* Thread-safe random value */
+        unsigned int seed = time(NULL) ^ omp_get_thread_num();
+        value = rand_r(&seed) % 100000 + 1;
+
+        prev = head;
+        omp_set_lock(&prev->lock);
+
+        p = head->next;
+
+        while (p != NULL)
+        {
+            omp_set_lock(&p->lock);
+
+            if (p->value >= value)
+                break;
+
+            omp_unset_lock(&prev->lock);
+            prev = p;
+            p = p->next;
+        }
+
+        /* Create new node */
+        newNode = (Node *)calloc(1, sizeof(Node));
+        newNode->value = value;
+        newNode->next = p;
+        newNode->prev = prev;
+        omp_init_lock(&newNode->lock);
+
+        prev->next = newNode;
+
+        if (p != NULL)
+            p->prev = newNode;
+
+        /* Unlock in correct order */
+        omp_unset_lock(&prev->lock);
+
+        if (p != NULL)
+            omp_unset_lock(&p->lock);
+    }
+
+    double run_time = omp_get_wtime() - start_time;
+
+    printf("N = %d | Threads = %d | Time = %.6f seconds\n",
+           N, threads, run_time);
+
+    /* ======================================
+       Verify Correctness
+    ====================================== */
+    verify(N);
+
+    /* ======================================
+       Cleanup
+    ====================================== */
+    cleanup();
+
+    return 0;
+}

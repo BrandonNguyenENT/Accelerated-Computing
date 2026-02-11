@@ -1,0 +1,176 @@
+#include <omp.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
+#include <string.h>
+
+typedef struct Node {
+    int val;
+    struct Node *prev;
+    struct Node *next;
+    omp_lock_t lock;
+} Node;
+
+static uint32_t lcg_step(uint32_t *state) {
+    *state = (*state * 1664525u) + 1013904223u;
+    return *state;
+}
+
+static Node *create_sentinel(void) {
+    Node *head = (Node *)calloc(1, sizeof(Node));
+    if (!head) { fprintf(stderr, "Failed to allocate sentinel\n"); exit(1); }
+    head->val = INT_MIN;
+    head->prev = NULL;
+    head->next = NULL;
+    omp_init_lock(&head->lock);
+    return head;
+}
+
+static void free_list(Node *head) {
+    Node *cur = head;
+    while (cur) {
+        Node *tmp = cur->next;
+        omp_destroy_lock(&cur->lock);
+        free(cur);
+        cur = tmp;
+    }
+}
+
+static int validate_sorted(Node *head, int *is_sorted_out) {
+    int count = 0, sorted = 1;
+    Node *cur = head->next;
+    int last_val = INT_MIN;
+    while (cur) {
+        count++;
+        if (cur->val < last_val) sorted = 0;
+        last_val = cur->val;
+        if (cur->next && cur->next->prev != cur) sorted = 0;
+        cur = cur->next;
+    }
+    if (is_sorted_out) *is_sorted_out = sorted;
+    return count;
+}
+
+
+static void insert_serial(Node *head, int value) {
+    Node *prev = head;
+    Node *cur = head->next;
+    while (cur && cur->val < value) { prev = cur; cur = cur->next; }
+
+    Node *new_node = (Node *)calloc(1, sizeof(Node));
+    if (!new_node) { fprintf(stderr, "Failed to allocate node\n"); exit(1); }
+    new_node->val = value;
+    new_node->prev = prev;
+    new_node->next = cur;
+    omp_init_lock(&new_node->lock);
+
+    prev->next = new_node;
+    if (cur) cur->prev = new_node;
+}
+
+static void insert_parallel(Node *head, int value) {
+    Node *prev = head;
+    omp_set_lock(&prev->lock);
+
+    Node *cur = prev->next;
+    if (cur) omp_set_lock(&cur->lock);
+
+    while (cur && cur->val < value) {
+        omp_unset_lock(&prev->lock);
+        prev = cur;
+        cur = cur->next;
+        if (cur) omp_set_lock(&cur->lock);
+    }
+
+    Node *new_node = (Node *)calloc(1, sizeof(Node));
+    if (!new_node) { fprintf(stderr, "Failed to allocate node\n"); exit(1); }
+    new_node->val = value;
+    new_node->prev = prev;
+    new_node->next = cur;
+    omp_init_lock(&new_node->lock);
+
+    prev->next = new_node;
+    if (cur) cur->prev = new_node;
+
+    if (cur) omp_unset_lock(&cur->lock);
+    omp_unset_lock(&prev->lock);
+}
+
+static int parse_N(const char *s) {
+    if (!s || !*s) return -1;
+
+    if (strncmp(s, "2^", 2) == 0) {
+        int k = atoi(s + 2);
+        if (k < 0 || k > 30) return -1;
+        return 1 << k;
+    }
+
+    char *end = NULL;
+    double v = strtod(s, &end);
+    if (end == s || v < 1.0 || v > 2147483647.0) return -1;
+    return (int)(v + 0.5);
+}
+
+static int max_pow2(int x) {
+    int p = 1;
+    while ((p << 1) > 0 && (p << 1) <= x) p <<= 1;
+    return p;
+}
+
+int main(int argc, char **argv) {
+    int N = 1024;
+    if (argc >= 2) {
+        int parsed = parse_N(argv[1]);
+        if (parsed < 1) { fprintf(stderr, "Usage: %s <N | 1eK | 2^K>\n", argv[0]); return 2; }
+        N = parsed;
+    }
+
+    int max_threads = 8;
+    const char *env = getenv("OMP_NUM_THREADS");
+    if (env && *env) { int t = atoi(env); if (t >= 1) max_threads = t; }
+    max_threads = max_pow2(max_threads);
+
+    int *vals = (int *)malloc((size_t)N * sizeof(int));
+    if (!vals) { fprintf(stderr, "malloc failed\n"); return 1; }
+    uint32_t rng = 1u;
+    for (int i = 0; i < N; i++) vals[i] = (int)(lcg_step(&rng) % 1000000u) + 1;
+
+
+    for (int nthreads = 2; nthreads <= max_threads; nthreads <<= 1) {
+        Node *head = create_sentinel();
+        omp_set_num_threads(nthreads);
+
+        double t0 = omp_get_wtime();
+#pragma omp parallel for schedule(static)
+        for (int i = 0; i < N; i++) insert_parallel(head, vals[i]);
+        double t1 = omp_get_wtime();
+
+        int sorted = 0;
+        int count = validate_sorted(head, &sorted);
+        int correct = (sorted && count == N) ? count : -1;
+        printf("parallel: threads=%d, count=%d, correct=%d, N=%.0e, %.2e s\n",
+               nthreads, count, correct, (double)N, (t1 - t0));
+
+        free_list(head);
+    }
+
+
+    {
+        Node *head = create_sentinel();
+        double t0 = omp_get_wtime();
+        for (int i = 0; i < N; i++) insert_serial(head, vals[i]);
+        double t1 = omp_get_wtime();
+
+        int sorted = 0;
+        int count = validate_sorted(head, &sorted);
+        int correct = (sorted && count == N) ? count : -1;
+        printf("serial: count=%d, correct=%d, N=%.0e, %.2e s\n",
+               count, correct, (double)N, (t1 - t0));
+
+        free_list(head);
+    }
+
+    free(vals);
+    return 0;
+}
