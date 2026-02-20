@@ -52,5 +52,3 @@ grid on;
 set(gcf, 'Color', 'white');
 
 figure(1);
-
-
