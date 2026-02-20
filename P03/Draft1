@@ -1,0 +1,57 @@
+#include <omp.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <math.h>
+
+double f(double x) {
+    return acos( cos(x) / (1.0 + 2.0 * cos(x)) );
+}
+
+int main() {
+
+    const double a = 0.0;
+    const double b = M_PI / 2.0;
+    const long N = 100000000;   // must be even
+    const double exact = 5.0 * M_PI * M_PI / 24.0;
+
+    double h = (b - a) / N;
+
+    printf("Threads, Runtime(s), Approximation, Error\n");
+
+    for (int p = 0; p <= 8; p++) {
+
+        int threads = 1 << p;
+        omp_set_num_threads(threads);
+
+        double start = omp_get_wtime();
+
+        double sum_odd = 0.0;
+        double sum_even = 0.0;
+
+        // odd indices
+        #pragma omp parallel for reduction(+:sum_odd)
+        for (long i = 1; i < N; i += 2) {
+            sum_odd += f(a + i * h);
+        }
+
+        // even indices
+        #pragma omp parallel for reduction(+:sum_even)
+        for (long i = 2; i < N; i += 2) {
+            sum_even += f(a + i * h);
+        }
+
+        double result = (h/3.0) * ( f(a) + f(b)
+                        + 4.0 * sum_odd
+                        + 2.0 * sum_even );
+
+        double runtime = omp_get_wtime() - start;
+        double error = fabs(result - exact);
+
+        printf("%d, %.6f, %.15f, %.3e\n",
+               threads, runtime, result, error);
+    }
+
+    return 0;
+}
