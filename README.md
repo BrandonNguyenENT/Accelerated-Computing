@@ -11,6 +11,10 @@ This repository contains all important files related to the project made in this
 
 - P02: OpenMP Node Insertion Bidirectional Linked List
 
+- P03: OpenMP Simpson’s Quadrature Method
+
+- P04:
+
 - 
 
 ## Contents
@@ -18,6 +22,10 @@ This repository contains all important files related to the project made in this
 - P01: OpenMP Double Precision General Matrix Multiply
 
 - P02: OpenMP Node Insertion Bidirectional Linked List
+
+- P03: OpenMP Simpson’s Quadrature Method
+
+- P04:
 
 - 
 
