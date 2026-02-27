@@ -1,5 +1,5 @@
 # Accelerated-Computing
-Accelerated Computing - NVIDIA DGX OpenMP (C), 
+Accelerated Computing - DGX Server: OpenMP (C), NVIDIA CUDA (C), 
 
 ## Purpose
 
