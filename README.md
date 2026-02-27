@@ -13,7 +13,7 @@ This repository contains all important files related to the project made in this
 
 - P03: OpenMP Simpson’s Quadrature Method
 
-- P04:  Nvidia CUDA Reduction By Summation
+- P04: NVIDIA CUDA Reduction By Summation
 
 - 
 
@@ -25,7 +25,7 @@ This repository contains all important files related to the project made in this
 
 - P03: OpenMP Simpson’s Quadrature Method
 
-- P04: Nvidia CUDA Reduction By Summation
+- P04: NVIDIA CUDA Reduction By Summation
 
 - 
 
