@@ -15,7 +15,9 @@ This repository contains all important files related to the project made in this
 
 - P04: NVIDIA CUDA Reduction By Summation
 
-- 
+- P05: NVIDIA CUDA Tiled Dense Matrix Multiplication
+
+- P06:
 
 ## Contents
 
@@ -27,7 +29,9 @@ This repository contains all important files related to the project made in this
 
 - P04: NVIDIA CUDA Reduction By Summation
 
-- 
+- P05: NVIDIA CUDA Tiled Dense Matrix Multiplication
+
+- P06:
 
 ## Class
 
