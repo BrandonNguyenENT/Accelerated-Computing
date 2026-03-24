@@ -17,7 +17,9 @@ This repository contains all important files related to the project made in this
 
 - P05: NVIDIA CUDA Tiled Dense Matrix Multiplication
 
-- P06:
+- P06: NVIDIA CUDA LU Factorization & Dense Linear Systems
+
+- P07:
 
 ## Contents
 
@@ -31,7 +33,9 @@ This repository contains all important files related to the project made in this
 
 - P05: NVIDIA CUDA Tiled Dense Matrix Multiplication
 
-- P06:
+- P06: NVIDIA CUDA LU Factorization & Dense Linear Systems
+
+- P07:
 
 ## Class
 
