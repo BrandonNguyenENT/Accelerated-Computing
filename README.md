@@ -19,7 +19,9 @@ This repository contains all important files related to the project made in this
 
 - P06: NVIDIA CUDA LU Factorization & Dense Linear Systems
 
-- P07:
+- P07: NVIDIA CUDA GPU Accelerated 2D Discrete Convolution
+
+- P08:
 
 ## Contents
 
@@ -35,7 +37,9 @@ This repository contains all important files related to the project made in this
 
 - P06: NVIDIA CUDA LU Factorization & Dense Linear Systems
 
-- P07:
+- P07: NVIDIA CUDA GPU Accelerated 2D Discrete Convolution
+
+- P08:
 
 ## Class
 
