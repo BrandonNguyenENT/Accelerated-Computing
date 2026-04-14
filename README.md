@@ -21,7 +21,9 @@ This repository contains all important files related to the project made in this
 
 - P07: NVIDIA CUDA GPU Accelerated 2D Discrete Convolution
 
-- P08:
+- P08: NVIDIA CUDA Discrete Fourier Transform Acceleration 
+
+- P09:
 
 ## Contents
 
@@ -39,7 +41,9 @@ This repository contains all important files related to the project made in this
 
 - P07: NVIDIA CUDA GPU Accelerated 2D Discrete Convolution
 
-- P08:
+- P08: NVIDIA CUDA Discrete Fourier Transform Acceleration 
+
+- P09:
 
 ## Class
 
