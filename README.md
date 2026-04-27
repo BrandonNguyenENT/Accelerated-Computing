@@ -1,5 +1,5 @@
 # Accelerated-Computing
-Accelerated Computing - DGX Server: OpenMP (C), NVIDIA CUDA (C), 
+Accelerated Computing - DGX Server: OpenMP (C), NVIDIA CUDA (C), HIP (C), OpenCL (C++), MPI ()
 
 ## Purpose
 
@@ -23,7 +23,11 @@ This repository contains all important files related to the project made in this
 
 - P08: NVIDIA CUDA Discrete Fourier Transform Acceleration 
 
-- P09:
+- P09: AMD HIP Sparse and Dense Multiplication With rocSPARSE and rocBLAS
+
+- P10: OpenCL Triple Product Vector Addition
+
+- P11:
 
 ## Contents
 
@@ -43,7 +47,11 @@ This repository contains all important files related to the project made in this
 
 - P08: NVIDIA CUDA Discrete Fourier Transform Acceleration 
 
-- P09:
+- P09: AMD HIP Sparse and Dense Multiplication With rocSPARSE and rocBLAS
+
+- P10: OpenCL Triple Product Vector Addition
+
+- P11:
 
 ## Class
 
