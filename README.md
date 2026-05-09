@@ -1,5 +1,5 @@
 # Accelerated-Computing
-Accelerated Computing - DGX Server: OpenMP (C), NVIDIA CUDA (C), HIP (C), OpenCL (C++), MPI ()
+Accelerated Computing - DGX Server: OpenMP (C), NVIDIA CUDA (C), AMD HIP (C), OpenCL (C++), MPI (C/C++)
 
 ## Purpose
 
@@ -27,7 +27,7 @@ This repository contains all important files related to the project made in this
 
 - P10: OpenCL Triple Product Vector Addition
 
-- P11:
+- P11: Hybrid MPI + CUDA Simpson’s Quadrature Method
 
 ## Contents
 
@@ -51,7 +51,7 @@ This repository contains all important files related to the project made in this
 
 - P10: OpenCL Triple Product Vector Addition
 
-- P11:
+- P11: Hybrid MPI + CUDA Simpson’s Quadrature Method
 
 ## Class
 
